@@ -7,8 +7,11 @@ pkg crypto =
 		rk	: uint32[60]
 		accu	: uint8[16]
 	;;
+	
 	const aes_init_enc : (pctx : aesctx#, key : uint8[:] -> void)
+	const aes_init_dec : (pctx : aesctx#, key : uint8[:] -> void)
 	const aes_enc_ecb  : (out: uint8[16]#, inp : uint8[16], pctx : aesctx# -> void)
+	const aes_dec_ecb  : (out: uint8[16]#, inp : uint8[16], pctx : aesctx# -> void)
 ;;
 
 const getw = {t : uint8[:], i : uint32
