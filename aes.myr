@@ -1,5 +1,10 @@
 use std
 
+/*
+	Original code by Quentin Carbonneaux in 2009
+	Ported from C to Myrddin with permission by Andrew Chambers in 2015
+*/
+
 pkg crypto =
 	type aesctx = struct
 		n_rounds : uint32
