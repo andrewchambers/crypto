@@ -38,7 +38,7 @@ const RCON : uint32[10] = [
 	0x1B, 0x36
 ]
 
-	const aes_init_enc = {pctx : aesctx#, key : uint8[:]
+const aes_init_enc = {pctx : aesctx#, key : uint8[:]
 
 	pctx.key_size = key.len
 	match key.len
