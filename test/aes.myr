@@ -11,8 +11,8 @@ const enctest = {t : aestest
 	var ctx : crypto.aesctx
 	var out : uint8[16]
 
-	crypto.aes_init_enc(&ctx, t.key)
-	crypto.aes_enc_ecb(&out, t.inp, &ctx)
+	crypto.aesencinit(&ctx, t.key)
+	crypto.aesecbenc(&out, t.inp, &ctx)
 	if !std.sleq(out[:], t.out[:])
 		std.fatal("test failed")
 	;;
@@ -22,8 +22,8 @@ const dectest = {t : aestest
 	var ctx : crypto.aesctx
 	var out : uint8[16]
 
-	crypto.aes_init_dec(&ctx, t.key)
-	crypto.aes_dec_ecb(&out, t.inp, &ctx)
+	crypto.aesdecinit(&ctx, t.key)
+	crypto.aesecbdec(&out, t.inp, &ctx)
 	if !std.sleq(out[:], t.out[:])
 		std.fatal("test failed")
 	;;

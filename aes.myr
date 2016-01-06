@@ -7,22 +7,23 @@ use std
 
 pkg crypto =
 	type aesctx = struct
-		n_rounds : uint32
-		key_size : uint32
+		nrounds	: uint32
+		keysz	: uint32
 		rk	: uint32[60]
-		accu	: uint8[16]
+		accum	: uint8[16]
 	;;
- 	const aes_init_enc : (pctx : aesctx#, key : uint8[:] -> void)
-	const aes_init_dec : (pctx : aesctx#, key : uint8[:] -> void)
-	const aes_enc_ecb  : (out: uint8[16]#, inp : uint8[16], pctx : aesctx# -> void)
-	const aes_dec_ecb  : (out: uint8[16]#, inp : uint8[16], pctx : aesctx# -> void)
+
+ 	const aesencinit	: (pctx : aesctx#, key : uint8[:] -> void)
+	const aesdecinit	: (pctx : aesctx#, key : uint8[:] -> void)
+	const aesecbenc	: (out: uint8[16]#, inp : uint8[16], pctx : aesctx# -> void)
+	const aesecbdec	: (out: uint8[16]#, inp : uint8[16], pctx : aesctx# -> void)
 ;;
 
 const getw = {t : uint8[:], i : uint32
 	->  (t[i+0] castto(uint32)) << 0  \
-	  | (t[i+1] castto(uint32)) << 8  \
-	  | (t[i+2] castto(uint32)) << 16 \
-	  | (t[i+3] castto(uint32)) << 24
+		| (t[i+1] castto(uint32)) << 8  \
+		| (t[i+2] castto(uint32)) << 16 \
+		| (t[i+3] castto(uint32)) << 24
 }
 
 const putw = {t : uint8[:], v : uint32, i : uint32
@@ -38,12 +39,12 @@ const RCON : uint32[10] = [
 	0x1B, 0x36
 ]
 
-const aes_init_enc = {pctx : aesctx#, key : uint8[:]
+const aesencinit = {pctx : aesctx#, key : uint8[:]
 
-	pctx.key_size = key.len
+	pctx.keysz = key.len
 	match key.len
 	| 16:
-		pctx.n_rounds = 10
+		pctx.nrounds = 10
 		for var i=0; i<16; i+=4
 			pctx.rk[i>>2] = getw(key, i)
 		;;
@@ -58,7 +59,7 @@ const aes_init_enc = {pctx : aesctx#, key : uint8[:]
 			pctx.rk[(i<<2)+3] = pctx.rk[(i<<2)+2] ^ pctx.rk[((i-1)<<2)+3]
 		;;
 	| 24:
-		pctx.n_rounds = 12
+		pctx.nrounds = 12
 		for var i=0; i<24; i+=4
 			pctx.rk[i>>2] = getw(key, i)
 		;;
@@ -77,7 +78,7 @@ const aes_init_enc = {pctx : aesctx#, key : uint8[:]
 			;;
 		;;
 	| 32:
-		pctx.n_rounds = 14;
+		pctx.nrounds = 14;
 		for var i=0; i<32; i+=4
 			pctx.rk[i>>2] = getw(key, i)
 		;;
@@ -107,21 +108,21 @@ const aes_init_enc = {pctx : aesctx#, key : uint8[:]
 	}
 
 
-const aes_init_dec = {pctx : aesctx#, key : uint8[:]
+const aesdecinit = {pctx : aesctx#, key : uint8[:]
 	var ectx : aesctx
 	var erk, eoffset
 	var drk, doffset
 
-	aes_init_enc(&ectx, key)
+	aesencinit(&ectx, key)
 	erk = &ectx.rk
 	drk = &pctx.rk
-	pctx.n_rounds = ectx.n_rounds
-	pctx.key_size = ectx.key_size;
-	/* inverse the order of the key blocks & compute InvMixColumns(key_i) for each 0<i<n_rounds */
+	pctx.nrounds = ectx.nrounds
+	pctx.keysz = ectx.keysz;
+	/* inverse the order of the key blocks & compute InvMixColumns(key_i) for each 0<i<nrounds */
 	doffset = 0
-	eoffset = 4*ectx.n_rounds
-	for var i=0; i< ectx.n_rounds+1; i++
-		if (i == 0) || (i == ectx.n_rounds)
+	eoffset = 4*ectx.nrounds
+	for var i=0; i< ectx.nrounds+1; i++
+		if (i == 0) || (i == ectx.nrounds)
 			drk#[0 + doffset] = erk#[0 + eoffset]
 			drk#[1 + doffset] = erk#[1 + eoffset]
 			drk#[2 + doffset] = erk#[2 + eoffset]
@@ -142,8 +143,8 @@ const aes_init_dec = {pctx : aesctx#, key : uint8[:]
 	for var i = 0; i < ectx.rk.len; i++
 		ectx.rk[i] = 0
 	;;
-	for var i = 0; i < ectx.accu.len; i++
-		ectx.accu[i] = 0
+	for var i = 0; i < ectx.accum.len; i++
+		ectx.accum[i] = 0
 	;;
 }
 
@@ -194,9 +195,9 @@ const dround = {out : uint32[4]#, inp : uint32[4]#, rkey : uint32[:]
 		iT3[(inp#[0] >> 24) & 0xff]
 }
 
-const aes_enc_ecb = {out: uint8[16]#, inp : uint8[16], pctx : aesctx#
+const aesecbenc = {out: uint8[16]#, inp : uint8[16], pctx : aesctx#
 	var ciphertext : uint32[4]
-	var cipheraccu : uint32[4]
+	var cipheraccum : uint32[4]
 	var roff       : uint32
 	var rkey
 
@@ -206,48 +207,48 @@ const aes_enc_ecb = {out: uint8[16]#, inp : uint8[16], pctx : aesctx#
 		ciphertext[i] = getw(inp[:], (i<<2))
 		ciphertext[i] ^= rkey[roff++];
 	;;
-	for var i=0; i<pctx.n_rounds/2-1; i++ 
+	for var i=0; i<pctx.nrounds/2-1; i++ 
 		/* do normal rounds on columns of 4*4 Rijndael blocks */
-		eround(&cipheraccu, &ciphertext, rkey[roff:])
+		eround(&cipheraccum, &ciphertext, rkey[roff:])
 		roff += 4
-		eround(&ciphertext, &cipheraccu, rkey[roff:])
+		eround(&ciphertext, &cipheraccum, rkey[roff:])
 		roff += 4
 	;;
-	eround(&cipheraccu, &ciphertext, rkey[roff:])
+	eround(&cipheraccum, &ciphertext, rkey[roff:])
 	roff += 4
 	/* do the special last round (no MixColumns) */
 	ciphertext[0] = rkey[roff+0] ^ \ 
-		(((Sbox[(cipheraccu[0]      ) & 0xff] castto(uint32))      ) | \
-		 ((Sbox[(cipheraccu[1] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
-		 ((Sbox[(cipheraccu[2] >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((Sbox[(cipheraccu[3] >> 24) & 0xff] castto(uint32)) << 24))
+		(((Sbox[(cipheraccum[0]      ) & 0xff] castto(uint32))      ) | \
+		 ((Sbox[(cipheraccum[1] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
+		 ((Sbox[(cipheraccum[2] >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((Sbox[(cipheraccum[3] >> 24) & 0xff] castto(uint32)) << 24))
 
 	ciphertext[1] = rkey[roff+1] ^ \
-		(((Sbox[(cipheraccu[1]      ) & 0xff] castto(uint32))      ) | \
-		 ((Sbox[(cipheraccu[2] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
-		 ((Sbox[(cipheraccu[3] >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((Sbox[(cipheraccu[0] >> 24) & 0xff] castto(uint32)) << 24))
+		(((Sbox[(cipheraccum[1]      ) & 0xff] castto(uint32))      ) | \
+		 ((Sbox[(cipheraccum[2] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
+		 ((Sbox[(cipheraccum[3] >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((Sbox[(cipheraccum[0] >> 24) & 0xff] castto(uint32)) << 24))
 
 	ciphertext[2] = rkey[roff+2] ^ \
-		(((Sbox[(cipheraccu[2]      ) & 0xff] castto(uint32))      ) | \
-		 ((Sbox[(cipheraccu[3] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
-		 ((Sbox[(cipheraccu[0] >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((Sbox[(cipheraccu[1] >> 24) & 0xff] castto(uint32)) << 24))
+		(((Sbox[(cipheraccum[2]      ) & 0xff] castto(uint32))      ) | \
+		 ((Sbox[(cipheraccum[3] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
+		 ((Sbox[(cipheraccum[0] >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((Sbox[(cipheraccum[1] >> 24) & 0xff] castto(uint32)) << 24))
 
 	ciphertext[3] = rkey[roff+3] ^ \
-		(((Sbox[(cipheraccu[3]       ) & 0xff] castto(uint32))      ) | \
-		 ((Sbox[(cipheraccu[0]  >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
-		 ((Sbox[(cipheraccu[1]  >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((Sbox[(cipheraccu[2]  >> 24) & 0xff] castto(uint32)) << 24))
+		(((Sbox[(cipheraccum[3]       ) & 0xff] castto(uint32))      ) | \
+		 ((Sbox[(cipheraccum[0]  >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
+		 ((Sbox[(cipheraccum[1]  >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((Sbox[(cipheraccum[2]  >> 24) & 0xff] castto(uint32)) << 24))
 	
 	for var i=0; i<4; i++
 		putw(out#[:], ciphertext[i], (i<<2))
 	;;
 }
 
-const aes_dec_ecb = { out : uint8[16]#, inp : uint8[16], pctx : aesctx#
+const aesecbdec = { out : uint8[16]#, inp : uint8[16], pctx : aesctx#
 	var plaintext : uint32[4]
-	var plainaccu : uint32[4]
+	var plainaccum : uint32[4]
 	var rkey, roff
 
 	rkey = pctx.rk;
@@ -258,38 +259,38 @@ const aes_dec_ecb = { out : uint8[16]#, inp : uint8[16], pctx : aesctx#
 		plaintext[i] ^= rkey[roff++]
 	;;
 
-	for var i=0; i < pctx.n_rounds/2-1; i++
-		dround(&plainaccu, &plaintext, rkey[roff:])
+	for var i=0; i < pctx.nrounds/2-1; i++
+		dround(&plainaccum, &plaintext, rkey[roff:])
 		roff += 4
-		dround(&plaintext, &plainaccu, rkey[roff:])
+		dround(&plaintext, &plainaccum, rkey[roff:])
 		roff += 4
 	;;
-	dround(&plainaccu, &plaintext, rkey[roff:])
+	dround(&plainaccum, &plaintext, rkey[roff:])
 	roff += 4;
 	/* last inverse round InvShift + InvSbox + InvAddKey */
 	plaintext[0] = rkey[roff+0] ^ \
-		(((iSbox[(plainaccu[0]      ) & 0xff] castto(uint32))      ) | \
-		 ((iSbox[(plainaccu[3] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \ 
-		 ((iSbox[(plainaccu[2] >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((iSbox[(plainaccu[1] >> 24) & 0xff] castto(uint32)) << 24))
+		(((iSbox[(plainaccum[0]      ) & 0xff] castto(uint32))      ) | \
+		 ((iSbox[(plainaccum[3] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \ 
+		 ((iSbox[(plainaccum[2] >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((iSbox[(plainaccum[1] >> 24) & 0xff] castto(uint32)) << 24))
 
 	plaintext[1] = rkey[roff+1] ^ \
-		(((iSbox[(plainaccu[1]      ) & 0xff] castto(uint32))      ) | \
-		 ((iSbox[(plainaccu[0] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
-		 ((iSbox[(plainaccu[3] >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((iSbox[(plainaccu[2] >> 24) & 0xff] castto(uint32)) << 24))
+		(((iSbox[(plainaccum[1]      ) & 0xff] castto(uint32))      ) | \
+		 ((iSbox[(plainaccum[0] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
+		 ((iSbox[(plainaccum[3] >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((iSbox[(plainaccum[2] >> 24) & 0xff] castto(uint32)) << 24))
 
 	plaintext[2] = rkey[roff+2] ^ \
-		(((iSbox[(plainaccu[2]      ) & 0xff] castto(uint32))      ) | \
-		 ((iSbox[(plainaccu[1] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
-		 ((iSbox[(plainaccu[0] >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((iSbox[(plainaccu[3] >> 24) & 0xff] castto(uint32)) << 24))
+		(((iSbox[(plainaccum[2]      ) & 0xff] castto(uint32))      ) | \
+		 ((iSbox[(plainaccum[1] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
+		 ((iSbox[(plainaccum[0] >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((iSbox[(plainaccum[3] >> 24) & 0xff] castto(uint32)) << 24))
 
 	plaintext[3] = rkey[roff+3] ^ \
-		(((iSbox[(plainaccu[3]      ) & 0xff] castto(uint32))      ) | \
-		 ((iSbox[(plainaccu[2] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
-		 ((iSbox[(plainaccu[1] >> 16) & 0xff] castto(uint32)) << 16) | \
-		 ((iSbox[(plainaccu[0] >> 24) & 0xff] castto(uint32)) << 24))
+		(((iSbox[(plainaccum[3]      ) & 0xff] castto(uint32))      ) | \
+		 ((iSbox[(plainaccum[2] >> 8 ) & 0xff] castto(uint32)) << 8 ) | \
+		 ((iSbox[(plainaccum[1] >> 16) & 0xff] castto(uint32)) << 16) | \
+		 ((iSbox[(plainaccum[0] >> 24) & 0xff] castto(uint32)) << 24))
 
 	for var i=0; i<4; i++
 		putw(out#[:], plaintext[i], (i<<2))
